@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>固体物理学习 Web</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]],
+        },
+        startup: {
+          typeset: true,
+        },
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="章节导航">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">SP</span>
+          <div>
+            <p class="brand-kicker">黄昆《固体物理学》</p>
+            <h1>固体物理学习 Web</h1>
+          </div>
+        </div>
+
+        <label class="search-box">
+          <span>检索章节</span>
+          <input id="chapterSearch" type="search" placeholder="晶格、能带、超导..." />
+        </label>
+
+        <nav id="chapterNav" class="chapter-nav"></nav>
+      </aside>
+
+      <main class="workspace">
+        <header class="chapter-hero">
+          <div>
+            <p id="chapterEyebrow" class="eyebrow"></p>
+            <h2 id="chapterTitle"></h2>
+            <p id="chapterSummary" class="chapter-summary"></p>
+          </div>
+          <div class="chapter-progress" aria-label="章节学习进度">
+            <span id="chapterCount"></span>
+            <div class="progress-track">
+              <div id="progressBar" class="progress-bar"></div>
+            </div>
+          </div>
+        </header>
+
+        <section class="chapter-grid" aria-label="章节内容框架">
+          <article class="panel section-panel">
+            <div class="panel-header">
+              <span class="panel-icon">#</span>
+              <h3>小节结构</h3>
+            </div>
+            <ol id="sectionList" class="section-list"></ol>
+          </article>
+
+          <article class="panel concept-panel">
+            <div class="panel-header">
+              <span class="panel-icon">C</span>
+              <h3>关键概念</h3>
+            </div>
+            <div id="conceptList" class="concept-list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <span class="panel-icon">F</span>
+              <h3>核心公式</h3>
+            </div>
+            <div id="formulaList" class="formula-list"></div>
+          </article>
+        </section>
+
+        <section id="latticeLab" class="visual-lab" aria-label="晶格晶胞交互可视化">
+          <div class="lab-main">
+            <div class="lab-title-row">
+              <div>
+                <p class="eyebrow">交互可视化</p>
+                <h3>晶格与晶胞实验室</h3>
+              </div>
+              <button id="resetView" class="icon-button" type="button" title="重置视角" aria-label="重置视角">
+                ↻
+              </button>
+            </div>
+            <canvas id="latticeCanvas" width="960" height="680" aria-label="晶胞可视化画布"></canvas>
+            <p class="canvas-hint">拖拽画布旋转晶胞；调整参数观察基元位置、晶胞重复和原子半径变化。</p>
+          </div>
+
+          <aside class="lab-controls" aria-label="晶胞参数控制">
+            <label>
+              <span>晶胞类型</span>
+              <select id="latticeType">
+                <option value="sc">简单立方</option>
+                <option value="bcc">体心立方</option>
+                <option value="fcc">面心立方</option>
+                <option value="hcp">六角密排堆积</option>
+                <option value="diamond">金刚石结构</option>
+              </select>
+            </label>
+
+            <label>
+              <span>晶格常数 a</span>
+              <input id="latticeA" type="range" min="1" max="6" step="0.1" value="3" />
+              <output id="latticeAValue"></output>
+            </label>
+
+            <label>
+              <span>重复晶胞数</span>
+              <input id="cellCount" type="range" min="1" max="3" step="1" value="1" />
+              <output id="cellCountValue"></output>
+            </label>
+
+            <label>
+              <span>原子半径</span>
+              <input id="atomRadius" type="range" min="0.12" max="0.55" step="0.01" value="0.12" />
+              <output id="atomRadiusValue"></output>
+            </label>
+
+            <label>
+              <span>自动旋转</span>
+              <input id="rotationSpeed" type="range" min="0" max="1.2" step="0.05" value="0" />
+              <output id="rotationSpeedValue"></output>
+            </label>
+
+            <div class="toggle-row">
+              <label><input id="showEdges" type="checkbox" checked /> 显示晶胞边界</label>
+              <label><input id="showLabels" type="checkbox" checked /> 显示基元标记</label>
+            </div>
+
+            <div id="latticeMetrics" class="metric-grid"></div>
+          </aside>
+        </section>
+
+        <section id="millerLab" class="visual-lab" aria-label="Miller 指数晶面切片可视化" hidden>
+          <div class="lab-main">
+            <div class="lab-title-row">
+              <div>
+                <p class="eyebrow">交互可视化</p>
+                <h3>Miller 指数切片</h3>
+              </div>
+            </div>
+            <canvas id="millerCanvas" width="960" height="560" aria-label="Miller 指数晶面切片画布"></canvas>
+            <p class="canvas-hint">调整 (hkl) 与层序 n，观察立方晶胞中晶面截距、法向和同族平行晶面。</p>
+          </div>
+
+          <aside class="lab-controls" aria-label="Miller 指数参数控制">
+            <div class="input-grid">
+              <label>
+                <span>h</span>
+                <input id="millerH" type="number" min="0" max="4" step="1" value="1" />
+              </label>
+              <label>
+                <span>k</span>
+                <input id="millerK" type="number" min="0" max="4" step="1" value="1" />
+              </label>
+              <label>
+                <span>l</span>
+                <input id="millerL" type="number" min="0" max="4" step="1" value="1" />
+              </label>
+            </div>
+
+            <label>
+              <span>层序 n</span>
+              <input id="millerOrder" type="range" min="0.25" max="3" step="0.25" value="1" />
+              <output id="millerOrderValue"></output>
+            </label>
+
+            <div class="toggle-row">
+              <label><input id="showMillerFamily" type="checkbox" checked /> 显示同族平行晶面</label>
+            </div>
+
+            <div id="millerMetrics" class="metric-grid"></div>
+          </aside>
+        </section>
+
+        <section id="reciprocalLab" class="visual-lab" aria-label="倒易格子与衍射点可视化" hidden>
+          <div class="lab-main">
+            <div class="lab-title-row">
+              <div>
+                <p class="eyebrow">交互可视化</p>
+                <h3>倒易格子与衍射点</h3>
+              </div>
+            </div>
+            <canvas id="reciprocalCanvas" width="960" height="560" aria-label="倒易格子与衍射点画布"></canvas>
+            <p class="canvas-hint">切换晶格类型、波长和倒易空间截面，亮点表示同时满足结构因子规则与 Bragg 可达条件的反射。</p>
+          </div>
+
+          <aside class="lab-controls" aria-label="倒易格子衍射参数控制">
+            <label>
+              <span>晶格类型</span>
+              <select id="reciprocalType">
+                <option value="sc">简单立方</option>
+                <option value="bcc">体心立方</option>
+                <option value="fcc">面心立方</option>
+                <option value="diamond">金刚石结构</option>
+              </select>
+            </label>
+
+            <label>
+              <span>波长 λ / a</span>
+              <input id="reciprocalLambda" type="range" min="0.35" max="1.5" step="0.05" value="0.75" />
+              <output id="reciprocalLambdaValue"></output>
+            </label>
+
+            <label>
+              <span>截面 l</span>
+              <input id="reciprocalLayer" type="range" min="0" max="4" step="1" value="0" />
+              <output id="reciprocalLayerValue"></output>
+            </label>
+
+            <label>
+              <span>指数范围</span>
+              <input id="reciprocalRange" type="range" min="2" max="6" step="1" value="4" />
+              <output id="reciprocalRangeValue"></output>
+            </label>
+
+            <div id="reciprocalMetrics" class="metric-grid"></div>
+          </aside>
+        </section>
+
+        <section id="potentialLab" class="visual-lab" aria-label="晶体结合势能曲线可视化" hidden>
+          <div class="lab-main">
+            <div class="lab-title-row">
+              <div>
+                <p class="eyebrow">交互可视化</p>
+                <h3>势能曲线调参</h3>
+              </div>
+            </div>
+            <canvas id="potentialCanvas" width="960" height="560" aria-label="晶体结合势能曲线画布"></canvas>
+            <p class="canvas-hint">调节吸引项和排斥项，观察势能极小值、平衡间距和结合能如何一起变化。</p>
+          </div>
+
+          <aside class="lab-controls" aria-label="势能曲线参数控制">
+            <label>
+              <span>吸引项指数 m</span>
+              <input id="attractionExponent" type="range" min="1" max="4" step="0.1" value="1" />
+              <output id="attractionExponentValue"></output>
+            </label>
+
+            <label>
+              <span>排斥项指数 n</span>
+              <input id="repulsionExponent" type="range" min="5" max="14" step="0.5" value="9" />
+              <output id="repulsionExponentValue"></output>
+            </label>
+
+            <label>
+              <span>吸引强度 A</span>
+              <input id="attractionStrength" type="range" min="0.5" max="2.5" step="0.05" value="1.2" />
+              <output id="attractionStrengthValue"></output>
+            </label>
+
+            <label>
+              <span>排斥强度 B</span>
+              <input id="repulsionStrength" type="range" min="0.05" max="1.2" step="0.01" value="0.35" />
+              <output id="repulsionStrengthValue"></output>
+            </label>
+
+            <div id="potentialMetrics" class="metric-grid"></div>
+          </aside>
+        </section>
+
+        <section id="bondLab" class="visual-lab" aria-label="晶体键型对比可视化" hidden>
+          <div class="lab-main">
+            <div class="lab-title-row">
+              <div>
+                <p class="eyebrow">交互可视化</p>
+                <h3>键型对比板</h3>
+              </div>
+            </div>
+            <canvas id="bondCanvas" width="960" height="560" aria-label="晶体键型对比画布"></canvas>
+            <p class="canvas-hint">对比离子键、共价键、金属键和分子晶体：看电子是转移、共享、离域还是只形成弱相互作用。</p>
+          </div>
+
+          <aside class="lab-controls" aria-label="键型对比参数控制">
+            <label>
+              <span>聚焦键型</span>
+              <select id="bondFocus">
+                <option value="ionic">离子键</option>
+                <option value="covalent">共价键</option>
+                <option value="metallic">金属键</option>
+                <option value="molecular">分子晶体</option>
+              </select>
+            </label>
+
+            <label>
+              <span>电负性差 Δχ</span>
+              <input id="electronegativityDelta" type="range" min="0" max="3.2" step="0.1" value="1.8" />
+              <output id="electronegativityDeltaValue"></output>
+            </label>
+
+            <label>
+              <span>电子离域程度</span>
+              <input id="electronDelocalization" type="range" min="0" max="1" step="0.05" value="0.45" />
+              <output id="electronDelocalizationValue"></output>
+            </label>
+
+            <div id="bondMetrics" class="metric-grid"></div>
+          </aside>
+        </section>
+
+        <section id="visualPlan" class="visual-plan" aria-label="后续可视化模块规划"></section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
