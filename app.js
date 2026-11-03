@@ -968,23 +968,32 @@ function clampIntegerInput(input, min, max, fallback) {
 }
 
 function currentMillerValues() {
-  const h = clampIntegerInput(millerControls.h, 0, 4, 1);
-  const k = clampIntegerInput(millerControls.k, 0, 4, 1);
-  const l = clampIntegerInput(millerControls.l, 0, 4, 1);
-  const maxOrder = Math.max(1, h + k + l);
-  let order = Number(millerControls.order.value);
+  const h = clampIntegerInput(millerControls.h, -4, 4, 1);
+  const k = clampIntegerInput(millerControls.k, -4, 4, 1);
+  const l = clampIntegerInput(millerControls.l, -4, 4, 1);
+  const valid = h !== 0 || k !== 0 || l !== 0;
+  const minOrder = Math.min(0, h) + Math.min(0, k) + Math.min(0, l);
+  const maxOrder = Math.max(0, h) + Math.max(0, k) + Math.max(0, l);
+  const slider = millerControls.order;
+  const previousOrder = Number(slider.value);
+  const preferredOrder = maxOrder > 0 ? 1 : -1;
+  const order =
+    Number.isFinite(previousOrder) && previousOrder >= minOrder && previousOrder <= maxOrder
+      ? previousOrder
+      : Math.max(minOrder, Math.min(maxOrder, preferredOrder));
 
-  millerControls.order.max = String(maxOrder);
-  if (!Number.isFinite(order)) order = 1;
-  if (order > maxOrder) order = maxOrder;
-  if (order < 0.25) order = 0.25;
-  millerControls.order.value = String(order);
+  slider.min = String(minOrder);
+  slider.max = String(maxOrder);
+  slider.value = String(order);
+  slider.disabled = !valid;
 
   return {
     h,
     k,
     l,
+    valid,
     order,
+    minOrder,
     maxOrder,
     showFamily: millerControls.showFamily.checked,
   };
@@ -1132,6 +1141,15 @@ function drawPlane(points, fillStyle, strokeStyle) {
   if (points.length === 0) return;
   const projected = points.map((point) => projectUnitPoint(point, resizeAuxCanvas(millerCanvas, millerCtx)));
 
+  if (projected.length === 1) {
+    const [point] = projected;
+    millerCtx.beginPath();
+    millerCtx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+    millerCtx.fillStyle = strokeStyle;
+    millerCtx.fill();
+    return;
+  }
+
   millerCtx.beginPath();
   projected.forEach((point, index) => {
     if (index === 0) {
@@ -1152,14 +1170,20 @@ function drawPlane(points, fillStyle, strokeStyle) {
   millerCtx.stroke();
 }
 
+function formatMillerIndices({ h, k, l }) {
+  return [h, k, l].map((index) => index < 0 ? `${-index}\u0305` : String(index)).join("");
+}
+
 function formatIntercept(index, order) {
-  if (index === 0) return "∞";
+  if (index === 0) return order === 0 ? "整轴" : "∞";
+  if (order === 0) return "0";
   const value = order / index;
-  return value === 1 ? "a" : `${value.toFixed(2)}a`;
+  if (Math.abs(value) === 1) return value < 0 ? "−a" : "a";
+  return `${value.toFixed(2)}a`;
 }
 
 function renderMillerMetrics(values, valid, visiblePointCount) {
-  millerControls.orderValue.textContent = `n = ${values.order.toFixed(2)}`;
+  millerControls.orderValue.textContent = valid ? `n = ${values.order.toFixed(2)}` : "—";
 
   if (!valid) {
     millerControls.metrics.innerHTML = `
@@ -1171,9 +1195,9 @@ function renderMillerMetrics(values, valid, visiblePointCount) {
   const normSquare = values.h ** 2 + values.k ** 2 + values.l ** 2;
   const dSpacing = normSquare === 1 ? "a" : `a / √${normSquare}`;
   millerControls.metrics.innerHTML = `
-    <div class="metric"><span>当前晶面</span><strong>(${values.h}${values.k}${values.l})，层序 ${values.order.toFixed(2)}</strong></div>
+    <div class="metric"><span>当前晶面</span><strong>(${formatMillerIndices(values)})，层序 ${values.order.toFixed(2)}</strong></div>
     <div class="metric"><span>截距</span><strong>x: ${formatIntercept(values.h, values.order)} · y: ${formatIntercept(values.k, values.order)} · z: ${formatIntercept(values.l, values.order)}</strong></div>
-    <div class="metric"><span>法向</span><strong>[${values.h}${values.k}${values.l}]</strong></div>
+    <div class="metric"><span>法向</span><strong>[${formatMillerIndices(values)}]</strong></div>
     <div class="metric"><span>面间距</span><strong>d = ${dSpacing}</strong></div>
     <div class="metric"><span>晶胞内交点</span><strong>${visiblePointCount} 个</strong></div>
   `;
@@ -1182,12 +1206,11 @@ function renderMillerMetrics(values, valid, visiblePointCount) {
 function drawMiller() {
   const values = currentMillerValues();
   const size = resizeAuxCanvas(millerCanvas, millerCtx);
-  const valid = values.h + values.k + values.l > 0;
 
   millerCtx.clearRect(0, 0, size.width, size.height);
   drawMillerCube(size);
 
-  if (!valid) {
+  if (!values.valid) {
     millerCtx.fillStyle = "rgba(31, 37, 33, 0.72)";
     millerCtx.font = "16px Microsoft YaHei, sans-serif";
     millerCtx.fillText("(000) 不能定义晶面，请至少输入一个非零指数。", 24, 34);
@@ -1196,7 +1219,7 @@ function drawMiller() {
   }
 
   if (values.showFamily) {
-    for (let order = 1; order <= values.maxOrder; order += 1) {
+    for (let order = values.minOrder; order <= values.maxOrder; order += 1) {
       if (Math.abs(order - values.order) < 0.01) continue;
       drawPlane(planeIntersection(values, order), "rgba(55, 109, 159, 0.08)", "rgba(55, 109, 159, 0.28)");
     }
@@ -1208,7 +1231,7 @@ function drawMiller() {
 
   millerCtx.fillStyle = "rgba(31, 37, 33, 0.76)";
   millerCtx.font = "14px Microsoft YaHei, sans-serif";
-  millerCtx.fillText(`晶面 (${values.h}${values.k}${values.l}) · hx + ky + lz = ${values.order.toFixed(2)}`, 18, 26);
+  millerCtx.fillText(`晶面 (${formatMillerIndices(values)}) · hx + ky + lz = ${values.order.toFixed(2)}`, 18, 26);
   renderMillerMetrics(values, true, selectedPoints.length);
 }
 
